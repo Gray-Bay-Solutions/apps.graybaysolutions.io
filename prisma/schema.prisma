@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id          Int       @id @default(autoincrement())
+  name        String
+  website     String?
+  status      String    @default("active") // active, inactive
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  services    Service[]
+  tickets     Ticket[]
+}
+
+model Service {
+  id          Int       @id @default(autoincrement())
+  name        String
+  type        String    // website, chatbot, analytics
+  status      String    @default("active")
+  clientId    Int
+  client      Client    @relation(fields: [clientId], references: [id])
+  healthScore Int       @default(100)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  metrics     Metric[]
+}
+
+model Template {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  version     String
+  status      String    @default("draft") // draft, published
+  type        String    // website, chatbot, analytics
+  author      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Ticket {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String    @db.Text
+  status      String    @default("open") // open, in_progress, resolved
+  priority    String    @default("low") // low, medium, high
+  clientId    Int
+  client      Client    @relation(fields: [clientId], references: [id])
+  assignee    String?
+  category    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Metric {
+  id          Int       @id @default(autoincrement())
+  name        String
+  value       String
+  serviceId   Int
+  service     Service   @relation(fields: [serviceId], references: [id])
+  timestamp   DateTime  @default(now())
+}
+
+model Activity {
+  id          Int       @id @default(autoincrement())
+  type        String    // deployment, configuration, alert, etc.
+  description String
+  user        String
+  target      String
+  status      String    @default("success") // success, warning, error
+  createdAt   DateTime  @default(now())
+}
