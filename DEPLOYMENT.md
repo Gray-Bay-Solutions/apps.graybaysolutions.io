@@ -303,7 +303,7 @@ sudo nano /usr/local/bin/backup-graybay.sh
 # Add backup commands
 #!/bin/bash
 DATE=$(date +%Y%m%d_%H%M%S)
-mysqldump -u gray -pLouieLily4050 graybay_monitoring > /backups/graybay_$DATE.sql
+mysqldump -u gray -p password graybay_monitoring > /backups/graybay_$DATE.sql
 
 # Make executable and add to cron
 chmod +x /usr/local/bin/backup-graybay.sh
