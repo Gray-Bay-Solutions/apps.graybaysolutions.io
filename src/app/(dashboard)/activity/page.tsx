@@ -1,8 +1,7 @@
 import { 
   Upload, 
   Settings, 
-  AlertTriangle, 
-  CheckCircle, 
+  AlertTriangle,
   User, 
   Server, 
   FileCode,

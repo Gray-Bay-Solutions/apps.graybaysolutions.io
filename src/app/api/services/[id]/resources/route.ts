@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import type { ResourceAllocation } from '@/generated/prisma';
+import type { ResourceAllocation } from '@prisma/client';
 
 interface ResourceMetrics {
   totalCapacity: number;
