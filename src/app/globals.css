@@ -24,3 +24,7 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+select, input, textarea, span, p, div, label {
+  color: #171717;
+}

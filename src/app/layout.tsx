@@ -3,12 +3,13 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import TopNav from "@/components/layout/TopNav";
+import { Providers } from './providers';
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Gray Bay IT Dashboard",
-  description: "Comprehensive monitoring and management system",
+  title: "Gray Bay IT Control Panel",
+  description: "Control panel for Gray Bay IT",
 };
 
 export default function RootLayout({
@@ -19,15 +20,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full bg-gray-50">
       <body className={`${inter.className} h-full`}>
-        <div className="min-h-full">
-          <TopNav />
-          <div className="flex">
-            <Sidebar />
-            <main className="flex-1 p-6">
-              {children}
-            </main>
-          </div>
-        </div>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

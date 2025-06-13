@@ -1,58 +1,186 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
 
-// GET /api/tickets
-export async function GET(request: Request) {
+const prisma = new PrismaClient();
+
+// GET /api/tickets - Get all tickets with optional filtering
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const clientId = searchParams.get('clientId');
     const status = searchParams.get('status');
     const priority = searchParams.get('priority');
-    const clientId = searchParams.get('clientId');
+    const type = searchParams.get('type');
+    const assignee = searchParams.get('assignee');
 
     const where: any = {};
-    if (status) where.status = status;
-    if (priority) where.priority = priority;
-    if (clientId) where.clientId = parseInt(clientId);
+    
+    if (clientId) {
+      where.clientId = parseInt(clientId);
+    }
+    
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+    
+    if (priority && priority !== 'all') {
+      where.priority = priority;
+    }
+    
+    if (type && type !== 'all') {
+      where.type = type;
+    }
+    
+    if (assignee && assignee !== 'all') {
+      where.assignee = assignee;
+    }
 
     const tickets = await prisma.ticket.findMany({
       where,
       include: {
-        client: true,
+        client: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        services: {
+          include: {
+            service: {
+              select: {
+                id: true,
+                name: true,
+                type: true
+              }
+            }
+          }
+        }
       },
       orderBy: {
-        createdAt: 'desc',
-      },
+        createdAt: 'desc'
+      }
     });
-    return NextResponse.json(tickets);
+
+    // Transform the data to match the frontend interface
+    const transformedTickets = tickets.map(ticket => ({
+      id: ticket.id.toString(),
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status,
+      priority: ticket.priority,
+      type: ticket.type,
+      clientId: ticket.clientId,
+      clientName: ticket.client.name,
+      assignee: ticket.assignee,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      scheduledFor: ticket.scheduledFor?.toISOString().split('T')[0],
+      services: ticket.services.map(ts => ts.service.name),
+      impact: ticket.impact
+    }));
+
+    return NextResponse.json(transformedTickets);
   } catch (error) {
-    return NextResponse.json({ error: 'Error fetching tickets' }, { status: 500 });
+    console.error('Error fetching tickets:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch tickets' },
+      { status: 500 }
+    );
   }
 }
 
-// POST /api/tickets
-export async function POST(request: Request) {
+// POST /api/tickets - Create a new ticket
+export async function POST(request: NextRequest) {
   try {
-    const json = await request.json();
+    const body = await request.json();
+    const {
+      title,
+      description,
+      type,
+      priority,
+      clientId,
+      services,
+      scheduledFor,
+      impact,
+      assignee
+    } = body;
+
+    // Validate required fields
+    if (!title || !description || !type || !priority || !clientId || !services?.length) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Create the ticket
     const ticket = await prisma.ticket.create({
-      data: json,
-      include: {
-        client: true,
-      },
-    });
-
-    // Log activity
-    await prisma.activity.create({
       data: {
-        type: 'ticket',
-        description: `New ticket created: ${ticket.title}`,
-        user: json.assignee || 'System',
-        target: `Ticket #${ticket.id}`,
-        status: 'success',
+        title,
+        description,
+        type,
+        priority,
+        clientId: parseInt(clientId),
+        assignee,
+        impact,
+        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+        status: 'open'
       },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
     });
 
-    return NextResponse.json(ticket, { status: 201 });
+    // Link services to the ticket
+    if (services && services.length > 0) {
+      // First, find the service IDs by name
+      const serviceRecords = await prisma.service.findMany({
+        where: {
+          name: {
+            in: services
+          },
+          clientId: parseInt(clientId)
+        }
+      });
+
+      // Create the ticket-service relationships
+      await prisma.ticketService.createMany({
+        data: serviceRecords.map(service => ({
+          ticketId: ticket.id,
+          serviceId: service.id
+        }))
+      });
+    }
+
+    // Transform the response
+    const transformedTicket = {
+      id: ticket.id.toString(),
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status,
+      priority: ticket.priority,
+      type: ticket.type,
+      clientId: ticket.clientId,
+      clientName: ticket.client.name,
+      assignee: ticket.assignee,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      scheduledFor: ticket.scheduledFor?.toISOString().split('T')[0],
+      services: services,
+      impact: ticket.impact
+    };
+
+    return NextResponse.json(transformedTicket, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: 'Error creating ticket' }, { status: 500 });
+    console.error('Error creating ticket:', error);
+    return NextResponse.json(
+      { error: 'Failed to create ticket' },
+      { status: 500 }
+    );
   }
 } 

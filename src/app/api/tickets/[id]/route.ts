@@ -1,19 +1,38 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
 
-// GET /api/tickets/[id]
+const prisma = new PrismaClient();
+
+// GET /api/tickets/[id] - Get a specific ticket
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params;
+    const ticketId = parseInt(id);
+
     const ticket = await prisma.ticket.findUnique({
-      where: {
-        id: parseInt(params.id),
-      },
+      where: { id: ticketId },
       include: {
-        client: true,
-      },
+        client: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        services: {
+          include: {
+            service: {
+              select: {
+                id: true,
+                name: true,
+                type: true
+              }
+            }
+          }
+        }
+      }
     });
 
     if (!ticket) {
@@ -23,79 +42,160 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(ticket);
+    // Transform the data to match the frontend interface
+    const transformedTicket = {
+      id: ticket.id.toString(),
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status,
+      priority: ticket.priority,
+      type: ticket.type,
+      clientId: ticket.clientId,
+      clientName: ticket.client.name,
+      assignee: ticket.assignee,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      scheduledFor: ticket.scheduledFor?.toISOString().split('T')[0],
+      services: ticket.services.map((ts: any) => ts.service.name),
+      impact: ticket.impact
+    };
+
+    return NextResponse.json(transformedTicket);
   } catch (error) {
+    console.error('Error fetching ticket:', error);
     return NextResponse.json(
-      { error: 'Error fetching ticket' },
+      { error: 'Failed to fetch ticket' },
       { status: 500 }
     );
   }
 }
 
-// PUT /api/tickets/[id]
+// PUT /api/tickets/[id] - Update a specific ticket
 export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const json = await request.json();
+    const { id } = await context.params;
+    const ticketId = parseInt(id);
+    const body = await request.json();
+    const {
+      title,
+      description,
+      type,
+      priority,
+      status,
+      services,
+      scheduledFor,
+      impact,
+      assignee
+    } = body;
+
+    // Update the ticket
     const ticket = await prisma.ticket.update({
-      where: {
-        id: parseInt(params.id),
-      },
-      data: json,
-      include: {
-        client: true,
-      },
-    });
-
-    // Log activity
-    await prisma.activity.create({
+      where: { id: ticketId },
       data: {
-        type: 'ticket',
-        description: `Ticket #${ticket.id} updated`,
-        user: json.assignee || 'System',
-        target: `Ticket #${ticket.id}`,
-        status: 'success',
+        title,
+        description,
+        type,
+        priority,
+        status,
+        assignee,
+        impact,
+        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+        updatedAt: new Date()
       },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
     });
 
-    return NextResponse.json(ticket);
+    // Update service relationships if provided
+    if (services && services.length > 0) {
+      // Remove existing relationships
+      await prisma.ticketService.deleteMany({
+        where: { ticketId: ticketId }
+      });
+
+      // Find the service IDs by name
+      const serviceRecords = await prisma.service.findMany({
+        where: {
+          name: {
+            in: services
+          },
+          clientId: ticket.clientId
+        }
+      });
+
+      // Create new relationships
+      await prisma.ticketService.createMany({
+        data: serviceRecords.map((service: any) => ({
+          ticketId: ticketId,
+          serviceId: service.id
+        }))
+      });
+    }
+
+    // Transform the response
+    const transformedTicket = {
+      id: ticket.id.toString(),
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status,
+      priority: ticket.priority,
+      type: ticket.type,
+      clientId: ticket.clientId,
+      clientName: ticket.client.name,
+      assignee: ticket.assignee,
+      createdAt: ticket.createdAt.toISOString(),
+      updatedAt: ticket.updatedAt.toISOString(),
+      scheduledFor: ticket.scheduledFor?.toISOString().split('T')[0],
+      services: services || [],
+      impact: ticket.impact
+    };
+
+    return NextResponse.json(transformedTicket);
   } catch (error) {
+    console.error('Error updating ticket:', error);
     return NextResponse.json(
-      { error: 'Error updating ticket' },
+      { error: 'Failed to update ticket' },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/tickets/[id]
+// DELETE /api/tickets/[id] - Delete a specific ticket
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ticket = await prisma.ticket.delete({
-      where: {
-        id: parseInt(params.id),
-      },
+    const { id } = await context.params;
+    const ticketId = parseInt(id);
+
+    // First, delete the ticket-service relationships
+    await prisma.ticketService.deleteMany({
+      where: { ticketId: ticketId }
     });
 
-    // Log activity
-    await prisma.activity.create({
-      data: {
-        type: 'ticket',
-        description: `Ticket #${ticket.id} deleted`,
-        user: 'System',
-        target: `Ticket #${ticket.id}`,
-        status: 'success',
-      },
+    // Then delete the ticket
+    await prisma.ticket.delete({
+      where: { id: ticketId }
     });
 
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
     return NextResponse.json(
-      { error: 'Error deleting ticket' },
+      { message: 'Ticket deleted successfully' },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('Error deleting ticket:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete ticket' },
       { status: 500 }
     );
   }

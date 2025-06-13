@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -18,17 +17,39 @@ model Client {
   id          Int       @id @default(autoincrement())
   name        String
   website     String?
-  status      String    @default("active") // active, inactive
+  industry    String?   // NEW
+  size        String?   // NEW (e.g. "1-10", "11-50", etc.)
+  status      String    @default("active")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  tier        String    @default("standard")
+  monthlyBudget Float?
+  contractStartDate DateTime?
+  contractEndDate   DateTime?
+  contacts    Contact[]
   services    Service[]
+  resourceAllocations ResourceAllocation[]
   tickets     Ticket[]
+  // Derived/denormalized fields (optional, for performance)
+  healthScore Int?      // Could be calculated from services
+  monthlyRevenue Float? // Could be calculated from services or invoices
+  activeUsers  Int?     // Could be a metric
+  uptime       Float?   // Could be a metric
+  responseTime Int?     // ms, could be a metric
+  errorRate    Float?   // Could be a metric
+  securityScore String? // Could be a metric or calculated
+  deployments  Deployment[]
+  metrics      ClientMetric[]
+  costs        ClientCost[]
+  invoices     Invoice[] // Back-reference for Invoice
+  quotes       Quote[] // Back-reference for Quote
 }
 
 model Service {
   id          Int       @id @default(autoincrement())
   name        String
-  type        String    // website, chatbot, analytics
+  type        String    // website, chatbot, analytics, etc.
+  description String?   // NEW
   status      String    @default("active")
   clientId    Int
   client      Client    @relation(fields: [clientId], references: [id])
@@ -36,32 +57,203 @@ model Service {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   metrics     Metric[]
+  resourceAllocations ResourceAllocation[]
+  capacityLimit      Int?
+  currentUsage       Float?
+  scalingThreshold   Float?
+  costPerUnit        Float?   // basePrice
+  customPrice        Float?   // NEW, for client-specific pricing
+  priceRangeMin      Float?   // NEW
+  priceRangeMax      Float?   // NEW
+  grafanaUrl         String?  // NEW
+  sentryProjectId    String?  // NEW
+  healthEndpoint     String?  // NEW
+  included           Boolean? // NEW, for onboarding
+  deployments        Deployment[]
+  ticketLinks        TicketService[] // Back-reference for TicketService join table
+  invoiceLinks       InvoiceService[] // Back-reference for InvoiceService join table
+}
+
+model ResourceAllocation {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  serviceId   Int
+  service     Service  @relation(fields: [serviceId], references: [id])
+  allocated   Float    // Allocated resource units
+  used        Float    // Actually used resource units
+  timestamp   DateTime @default(now())
+  cost        Float    // Cost for this allocation
+}
+
+model Contact {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  name        String
+  role        String
+  email       String
+  phone       String?
+  isPrimary   Boolean  @default(false)
+  type        String?  // "primary", "technical", etc. (NEW)
+}
+
+model PotentialClient {
+  id              Int      @id @default(autoincrement())
+  name            String
+  website         String?
+  status          String   @default("lead") // lead, prospect, negotiating, lost
+  interestedServices String @db.Text // JSON string of service types they're interested in
+  estimatedBudget Float?
+  firstContact    DateTime @default(now())
+  lastContact     DateTime @default(now())
+  notes           String?  @db.Text
+  assignedTo      String?  // Sales rep or account manager
+  probability     Float?   // Probability of conversion (0-100)
 }
 
 model Template {
-  id          Int       @id @default(autoincrement())
+  id            Int       @id @default(autoincrement())
+  name          String
+  description   String?
+  version       String
+  status        String    @default("draft") // draft, published
+  type          String    // website, chatbot, analytics, etc.
+  author        String
+  repository    String?
+  deploymentTime String?
+  monthlyRevenue Float?
+  securityScore String?
+  uptime        Float?
+  usageCount    Int?      // total deployments
+  activeInstances Int?
+  lastScan      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  dependencies  TemplateDependency[]
+  deployments   TemplateDeployment[]
+  metrics       TemplateMetric[]
+  environments  TemplateEnvironment[]
+  documentation TemplateDocumentation[]
+  features      TemplateFeature[]
+  requirements  TemplateRequirement[]
+  costs         TemplateCost[]
+  updates       TemplateUpdate[]
+}
+
+model TemplateDependency {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
   name        String
-  description String?
+  version     String?
+  isCritical  Boolean @default(false)
+  isRecent    Boolean @default(false)
+  isOutdated  Boolean @default(false)
+  isVulnerable Boolean @default(false)
+}
+
+model TemplateDeployment {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
+  client      String
+  status      String
+  date        DateTime
+  environment String?
+  version     String?
+  deployedBy  String?
+  duration    String?
+}
+
+model TemplateMetric {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
+  name        String
+  value       String
+  unit        String?
+  timestamp   DateTime @default(now())
+}
+
+model TemplateEnvironment {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
+  name        String
+  status      String
+  url         String?
+  lastDeployed DateTime?
+  version     String?
+  region      String?
+}
+
+model TemplateDocumentation {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
+  type        String  // setup, api, deployment, etc.
+  url         String
+}
+
+model TemplateFeature {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
+  description String
+}
+
+model TemplateRequirement {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
+  type        String  // cpu, memory, storage, database, node, service
+  value       String
+}
+
+model TemplateCost {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
+  type        String  // base, perUser, storage, bandwidth
+  amount      Float
+  unit        String?
+}
+
+model TemplateUpdate {
+  id          Int    @id @default(autoincrement())
+  templateId  Int
+  template    Template @relation(fields: [templateId], references: [id])
   version     String
-  status      String    @default("draft") // draft, published
-  type        String    // website, chatbot, analytics
-  author      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  date        DateTime
+  type        String  // major, minor, patch
+  changes     String  @db.Text // JSON or comma-separated list
 }
 
 model Ticket {
   id          Int       @id @default(autoincrement())
   title       String
   description String    @db.Text
-  status      String    @default("open") // open, in_progress, resolved
-  priority    String    @default("low") // low, medium, high
+  status      String    @default("open") // open, in_progress, resolved, pending_approval, scheduled, etc.
+  priority    String    @default("low") // low, medium, high, critical
   clientId    Int
   client      Client    @relation(fields: [clientId], references: [id])
   assignee    String?
-  category    String
+  type        String    // feature_request, configuration, customization, maintenance, etc.
+  impact      String?
+  scheduledFor DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  services    TicketService[] // many-to-many relation
+}
+
+model TicketService {
+  id        Int     @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket  @relation(fields: [ticketId], references: [id])
+  serviceId Int
+  service   Service @relation(fields: [serviceId], references: [id])
 }
 
 model Metric {
@@ -71,6 +263,9 @@ model Metric {
   serviceId   Int
   service     Service   @relation(fields: [serviceId], references: [id])
   timestamp   DateTime  @default(now())
+  unit        String?   // Unit of measurement
+  threshold   Float?    // Alert threshold
+  cost        Float?    // Cost associated with this metric
 }
 
 model Activity {
@@ -81,4 +276,133 @@ model Activity {
   target      String
   status      String    @default("success") // success, warning, error
   createdAt   DateTime  @default(now())
+}
+
+model Deployment {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  serviceId   Int?
+  service     Service? @relation(fields: [serviceId], references: [id])
+  date        DateTime
+  status      String   // scheduled, pending_approval, etc.
+  type        String   // Feature Deployment, Dashboard Update, etc.
+  description String?  // NEW
+}
+
+model ClientMetric {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  name        String
+  value       String
+  unit        String?
+  timestamp   DateTime @default(now())
+}
+
+model ClientCost {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  type        String   // infrastructure, services, total, etc.
+  amount      Float
+  month       DateTime // for monthly breakdown
+}
+
+model Invoice {
+  id            Int      @id @default(autoincrement())
+  invoiceNumber String   @unique
+  clientId      Int
+  client        Client   @relation(fields: [clientId], references: [id])
+  title         String
+  description   String?  @db.Text
+  amount        Float    // Total amount
+  subtotal      Float    @default(0)
+  tax           Float    @default(0)
+  taxRate       Float    @default(0)
+  status        String   // draft, sent, paid, overdue, cancelled
+  type          String   // setup, monthly, custom
+  issueDate     DateTime @default(now())
+  dueDate       DateTime
+  paidDate      DateTime?
+  paymentMethod String?
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  items         InvoiceItem[]
+  services      InvoiceService[] // Legacy relation for existing services
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId   String  // References products from products.ts
+  description String?
+  quantity    Int     @default(1)
+  unitPrice   Float
+  customPrice Float?  // Override price
+  discount    Float?  // Percentage discount
+  total       Float   // Calculated total for this line item
+  createdAt   DateTime @default(now())
+}
+
+model Quote {
+  id          Int      @id @default(autoincrement())
+  quoteNumber String   @unique
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  title       String
+  description String?  @db.Text
+  subtotal    Float    @default(0)
+  tax         Float    @default(0)
+  taxRate     Float    @default(0)
+  total       Float    // Total amount
+  status      String   // draft, sent, accepted, rejected, expired
+  validUntil  DateTime
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       QuoteItem[]
+  convertedToInvoiceId Int? // Track if converted to invoice
+}
+
+model QuoteItem {
+  id          Int   @id @default(autoincrement())
+  quoteId     Int
+  quote       Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId   String  // References products from products.ts
+  description String?
+  quantity    Int     @default(1)
+  unitPrice   Float
+  customPrice Float?  // Override price
+  discount    Float?  // Percentage discount
+  total       Float   // Calculated total for this line item
+  createdAt   DateTime @default(now())
+}
+
+model InvoiceService {
+  id         Int     @id @default(autoincrement())
+  invoiceId  Int
+  invoice    Invoice @relation(fields: [invoiceId], references: [id])
+  serviceId  Int
+  service    Service @relation(fields: [serviceId], references: [id])
+}
+
+model Expense {
+  id        Int      @id @default(autoincrement())
+  vendor    String
+  amount    Float
+  category  String
+  status    String   // Paid, Pending, etc.
+  date      DateTime
+  details   String?
+}
+
+model UpcomingAction {
+  id        Int      @id @default(autoincrement())
+  name      String
+  dueDate   DateTime
+  priority  String   // high, medium, low
+  type      String   // security, business, technical, cost, etc.
 }

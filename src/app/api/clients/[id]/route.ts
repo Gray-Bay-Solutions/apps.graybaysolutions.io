@@ -4,15 +4,17 @@ import prisma from '@/lib/prisma';
 // GET /api/clients/[id]
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const client = await prisma.client.findUnique({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
       include: {
         services: true,
+        contacts: true,
         tickets: true,
       },
     });
@@ -36,13 +38,14 @@ export async function GET(
 // PUT /api/clients/[id]
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const json = await request.json();
     const client = await prisma.client.update({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
       data: json,
     });
@@ -58,12 +61,13 @@ export async function PUT(
 // DELETE /api/clients/[id]
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await prisma.client.delete({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
     });
     return new NextResponse(null, { status: 204 });

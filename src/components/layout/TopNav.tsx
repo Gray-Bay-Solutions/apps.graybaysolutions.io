@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { Bell, Search, Settings, User, LogOut, HelpCircle, Shield, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import Logo from '../common/Logo';
 
 const notifications = [
   {
@@ -48,6 +51,8 @@ function classNames(...classes: string[]) {
 }
 
 export default function TopNav() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -56,6 +61,11 @@ export default function TopNav() {
     e.preventDefault();
     // Implement search functionality
     console.log('Searching for:', searchQuery);
+  };
+
+  const handleSignOut = async () => {
+    await signOut({ redirect: false });
+    router.push('/auth/signin');
   };
 
   const getNotificationIcon = (status: string) => {
@@ -69,14 +79,18 @@ export default function TopNav() {
     }
   };
 
+  if (!session) {
+    return null;
+  }
+
   return (
-    <nav className="bg-white shadow-sm">
-      <div className="mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 justify-between">
-          <div className="flex">
+    <nav className="bg-white shadow-sm h-16">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 h-full">
+        <div className="flex h-full justify-between">
+          <div className="flex h-full">
             <div className="flex flex-shrink-0 items-center">
-              <Link href="/" className="text-xl font-semibold text-gray-900">
-                GrayBay
+              <Link href="/" className="hover:opacity-75 transition-opacity">
+                <Logo />
               </Link>
             </div>
           </div>
@@ -152,7 +166,7 @@ export default function TopNav() {
                 <span className="sr-only">Open user menu</span>
                 <img
                   className="h-8 w-8 rounded-full"
-                  src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                  src={session.user?.image || "https://avatars.githubusercontent.com/u/77633076?v=4"}
                   alt=""
                 />
               </button>
@@ -160,11 +174,23 @@ export default function TopNav() {
               {isProfileOpen && (
                 <div className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5">
                   <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">Gray Crozier</p>
-                    <p className="text-sm text-gray-500">gray@graybay.com</p>
+                    <p className="text-sm font-medium text-gray-900">{session.user?.name}</p>
+                    <p className="text-sm text-gray-500">{session.user?.email}</p>
                   </div>
                   {userNavigation.map((item) => {
                     const Icon = item.icon;
+                    if (item.name === 'Sign out') {
+                      return (
+                        <button
+                          key={item.name}
+                          onClick={handleSignOut}
+                          className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          <Icon className="mr-3 h-4 w-4 text-gray-400" />
+                          {item.name}
+                        </button>
+                      );
+                    }
                     return (
                       <Link
                         key={item.name}

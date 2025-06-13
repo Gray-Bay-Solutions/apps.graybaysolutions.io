@@ -4,12 +4,13 @@ import prisma from '@/lib/prisma';
 // GET /api/services/[id]
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const service = await prisma.service.findUnique({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
       include: {
         client: true,
@@ -40,13 +41,14 @@ export async function GET(
 // PUT /api/services/[id]
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const json = await request.json();
     const service = await prisma.service.update({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
       data: json,
       include: {
@@ -65,12 +67,13 @@ export async function PUT(
 // DELETE /api/services/[id]
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await prisma.service.delete({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
     });
     return new NextResponse(null, { status: 204 });

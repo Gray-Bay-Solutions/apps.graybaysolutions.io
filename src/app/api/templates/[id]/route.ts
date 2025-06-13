@@ -4,12 +4,13 @@ import prisma from '@/lib/prisma';
 // GET /api/templates/[id]
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const template = await prisma.template.findUnique({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
     });
 
@@ -32,13 +33,14 @@ export async function GET(
 // PUT /api/templates/[id]
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const json = await request.json();
     const template = await prisma.template.update({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
       data: json,
     });
@@ -66,12 +68,13 @@ export async function PUT(
 // DELETE /api/templates/[id]
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const template = await prisma.template.delete({
       where: {
-        id: parseInt(params.id),
+        id: parseInt(id),
       },
     });
 

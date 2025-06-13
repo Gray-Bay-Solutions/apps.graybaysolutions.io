@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Always review prisma schema and api routes and types in the codebase before writing any code.
+
