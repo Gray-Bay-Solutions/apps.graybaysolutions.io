@@ -40,8 +40,8 @@ mysql -u root -p
 -- Create database
 CREATE DATABASE graybay_monitoring CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Create user (replace with your preferred username/password)
-CREATE USER 'gray'@'localhost' IDENTIFIED BY 'LouieLily4050';
+-- Create user
+CREATE USER 'gray'@'localhost' IDENTIFIED BY 'password';
 GRANT ALL PRIVILEGES ON graybay_monitoring.* TO 'gray'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
@@ -65,14 +65,14 @@ cd /var/www/graybay-monitoring
 nano .env.production
 ```
 
-Add the following content (replace with your actual values):
+Add the following content:
 ```env
 # Database Configuration
 DATABASE_URL="mysql://graybay_user:your_secure_password@localhost:3306/graybay_monitoring"
 
 # NextAuth Configuration
-NEXTAUTH_URL="https://your-domain.com"
-NEXTAUTH_SECRET="your-super-secret-nextauth-key-here"
+NEXTAUTH_URL="https://apps.graybaysolutions.io"
+NEXTAUTH_SECRET="your-super-secret-nextauth-key-here-generate-a-random-32-char-string"
 
 # Application Configuration
 NODE_ENV="production"
@@ -100,7 +100,7 @@ sudo nano /etc/nginx/sites-available/graybay-monitoring
 ```
 
 Copy the content from `nginx-site.conf` and update:
-- Replace `your-domain.com` with your actual domain
+- Domain is already set to `apps.graybaysolutions.io`
 - Ensure the proxy_pass points to `http://localhost:4000`
 
 ### Enable the site
@@ -115,17 +115,17 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## Step 5: SSL Setup (Optional but Recommended)
+## Step 5: SSL Setup (Required for Production)
 
-### Install Certbot
+### Install Certbot (if not already installed)
 ```bash
 sudo apt update
 sudo apt install certbot python3-certbot-nginx
 ```
 
-### Obtain SSL certificate
+### Obtain SSL certificate for apps.graybaysolutions.io
 ```bash
-sudo certbot --nginx -d your-domain.com -d www.your-domain.com
+sudo certbot --nginx -d apps.graybaysolutions.io
 ```
 
 ### Update Nginx configuration
@@ -160,7 +160,22 @@ pm2 restart graybay-monitoring
 pm2 stop graybay-monitoring
 ```
 
-## Step 7: Firewall Configuration
+## Step 7: DNS Configuration (On Your End)
+
+Make sure your DNS is configured to point `apps.graybaysolutions.io` to your Linode server:
+
+### Add DNS A Record
+In your domain registrar's DNS settings (or DNS provider):
+```
+Type: A
+Name: apps
+Value: [Your Linode Server IP Address]
+TTL: 300 (or default)
+```
+
+This will make `apps.graybaysolutions.io` point to your server.
+
+## Step 8: Firewall Configuration
 
 Ensure your firewall allows the necessary ports:
 ```bash
@@ -175,18 +190,18 @@ sudo ufw allow 443
 # Don't expose it directly to the internet
 ```
 
-## Step 8: Health Check
+## Step 9: Health Check
 
 ### Test your deployment
 ```bash
 # Check if the application is running on port 4000
 curl http://localhost:4000
 
-# Check through Nginx
-curl http://your-domain.com
+# Check through Nginx (after DNS propagation)
+curl http://apps.graybaysolutions.io
 
-# Check SSL (if configured)
-curl https://your-domain.com
+# Check SSL (after SSL setup)
+curl https://apps.graybaysolutions.io
 ```
 
 ## Troubleshooting
@@ -205,7 +220,7 @@ curl https://your-domain.com
 2. **Database connection issues:**
    ```bash
    # Test database connection
-   mysql -u graybay_user -p -h localhost graybay_monitoring
+   mysql -u gray -p -h localhost graybay_monitoring
    
    # Check Prisma connection
    cd /var/www/graybay-monitoring
@@ -219,6 +234,15 @@ curl https://your-domain.com
    
    # Test Nginx configuration
    sudo nginx -t
+   ```
+
+4. **DNS issues:**
+   ```bash
+   # Check if DNS is resolving correctly
+   nslookup apps.graybaysolutions.io
+   
+   # Test from your local machine
+   ping apps.graybaysolutions.io
    ```
 
 ### Useful Commands
@@ -279,7 +303,7 @@ sudo nano /usr/local/bin/backup-graybay.sh
 # Add backup commands
 #!/bin/bash
 DATE=$(date +%Y%m%d_%H%M%S)
-mysqldump -u graybay_user -p graybay_monitoring > /backups/graybay_$DATE.sql
+mysqldump -u gray -pLouieLily4050 graybay_monitoring > /backups/graybay_$DATE.sql
 
 # Make executable and add to cron
 chmod +x /usr/local/bin/backup-graybay.sh
@@ -289,6 +313,6 @@ crontab -e
 
 ---
 
-🎉 **Your Graybay Monitoring application should now be live!**
+🎉 **Your Graybay Monitoring application should now be live at https://apps.graybaysolutions.io!**
 
 Visit your domain to access the application. If you encounter any issues, check the troubleshooting section above. 
