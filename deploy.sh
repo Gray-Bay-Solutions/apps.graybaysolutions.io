@@ -4,6 +4,7 @@
 # This script helps deploy the Next.js app to production
 
 echo "🚀 Starting deployment process..."
+git pull
 
 # 1. Install dependencies
 echo "📦 Installing dependencies..."
